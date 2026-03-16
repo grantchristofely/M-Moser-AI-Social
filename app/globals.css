@@ -1,0 +1,76 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+/* ─── Global design tokens (light default) ──────────────────────────────────
+   All pages and components reference these variables.
+   Dark mode is activated by next-themes adding data-theme="dark" to <html>.
+──────────────────────────────────────────────────────────────────────────── */
+:root {
+  --bg:           #fafafa;
+  --surface:      #ffffff;
+  --surface-sub:  #f4f4f4;
+  --border:       rgba(0, 0, 0, 0.07);
+  --border-strong: rgba(0, 0, 0, 0.12);
+  --text:         #111111;
+  --text-muted:   #666666;
+  --text-faint:   #999999;
+  --accent:       #111111;
+  --accent-fg:    #ffffff;
+}
+
+[data-theme="dark"] {
+  --bg:           #0a0a0a;
+  --surface:      #141414;
+  --surface-sub:  #1c1c1c;
+  --border:       rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --text:         #f0f0f0;
+  --text-muted:   #888888;
+  --text-faint:   #555555;
+  --accent:       #f0f0f0;
+  --accent-fg:    #0a0a0a;
+}
+
+/* ─── Homepage section — wired to the shared tokens ────────────────────────
+   Keeps the --site-* alias names the Hero/Platforms/Ecosystems components use,
+   but now they follow whatever theme is active.
+──────────────────────────────────────────────────────────────────────────── */
+.homepage {
+  --site-bg:           var(--bg);
+  --site-surface:      var(--surface);
+  --site-surface-hover: var(--surface-sub);
+  --site-border:       var(--border);
+  --site-text:         var(--text);
+  --site-text-muted:   var(--text-muted);
+  --font-display: "Syne", ui-sans-serif, system-ui, sans-serif;
+
+  /* Gradient animation used by the Hero h1 hover effect */
+  @keyframes gradient {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  /* Scrollbar tracks the active theme colours */
+  scrollbar-color: var(--border-strong) var(--bg);
+}
+
+/* ─── Smooth theme transition ───────────────────────────────────────────── */
+*, *::before, *::after {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
+}
+
+/* Confetti Animation */
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(-100%) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+.animate-confetti-fall {
+  animation: confetti-fall linear forwards;
+}
