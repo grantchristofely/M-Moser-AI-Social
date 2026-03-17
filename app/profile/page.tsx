@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
-import { Camera, Edit2, Loader2, Save, X, Crop } from 'lucide-react';
+import { Camera, Edit2, Loader2, X, Crop } from 'lucide-react';
 import Cropper from 'react-easy-crop';
 import { getCroppedImg } from '@/utils/cropImage';
 
@@ -34,6 +34,22 @@ interface UserPost {
   created_at: string;
 }
 
+/** Full post data loaded on demand when a user clicks a profile post card. */
+interface FullPost {
+  id: string;
+  title: string;
+  content: string;
+  prompt: string;
+  tool: string;
+  work_streams: string[];
+  disciplines: string[];
+  media: string[];
+  created_at: string;
+  author: string;
+  avatar: string;
+  badge?: string | null;
+}
+
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [badges, setBadges] = useState<Badge[]>([]);
@@ -42,6 +58,10 @@ export default function ProfilePage() {
   const [showAllPosts, setShowAllPosts] = useState(false);
   const [showAllSaved, setShowAllSaved] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [selectedPost, setSelectedPost] = useState<FullPost | null>(null);
+  const [loadingPost, setLoadingPost] = useState(false);
+  const [previewMediaUrl, setPreviewMediaUrl] = useState<string | null>(null);
+  const [previewMediaIsVideo, setPreviewMediaIsVideo] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editTitle, setEditTitle] = useState('');
@@ -107,6 +127,46 @@ export default function ProfilePage() {
 
     loadProfile();
   }, [router]);
+
+  /** Fetch the full post data from Supabase and open the detail modal. */
+  const openPostDetail = async (postId: string) => {
+    setLoadingPost(true);
+    setSelectedPost(null);
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`*, profiles:author_id (full_name, avatar_url, badges (title))`)
+        .eq('id', postId)
+        .single();
+
+      if (error) throw error;
+
+      const post: FullPost = {
+        id: data.id,
+        title: data.title,
+        content: data.content || '',
+        prompt: data.prompt || '',
+        tool: data.tool || '',
+        work_streams: data.work_streams || [],
+        disciplines: data.disciplines || [],
+        media: data.media || [],
+        created_at: data.created_at,
+        author: data.profiles?.full_name || 'Unknown',
+        avatar: data.profiles?.avatar_url ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(data.profiles?.full_name || 'User')}`,
+        badge: Array.isArray(data.profiles?.badges) && data.profiles.badges.length > 0
+          ? data.profiles.badges[data.profiles.badges.length - 1].title
+          : null,
+      };
+
+      setSelectedPost(post);
+    } catch (err) {
+      console.error('Error loading post detail:', err);
+      alert('Could not load this post. Please try again.');
+    } finally {
+      setLoadingPost(false);
+    }
+  };
 
   const handleEditToggle = () => {
     if (isEditing) {
@@ -373,7 +433,7 @@ export default function ProfilePage() {
               <>
                 <div className="space-y-3">
                   {(showAllPosts ? userPosts : userPosts.slice(0, 5)).map(post => (
-                    <PostListItem key={post.id} post={post} />
+                    <PostListItem key={post.id} post={post} onClick={() => openPostDetail(post.id)} />
                   ))}
                 </div>
                 {userPosts.length > 5 && (
@@ -400,7 +460,7 @@ export default function ProfilePage() {
             <>
               <div className="grid md:grid-cols-2 gap-3">
                 {(showAllSaved ? savedPosts : savedPosts.slice(0, 6)).map(post => (
-                  <PostListItem key={post.id} post={post} />
+                  <PostListItem key={post.id} post={post} onClick={() => openPostDetail(post.id)} />
                 ))}
               </div>
               {savedPosts.length > 6 && (
@@ -419,6 +479,164 @@ export default function ProfilePage() {
           )}
         </section>
       </div>
+
+      {/* Loading spinner shown while fetching post detail */}
+      {loadingPost && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <Loader2 className="text-white animate-spin" size={40} />
+        </div>
+      )}
+
+      {/* Post Detail Modal */}
+      {selectedPost && (
+        <div
+          className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-6 bg-black/70 backdrop-blur-sm"
+          onClick={() => { setSelectedPost(null); setPreviewMediaUrl(null); }}
+        >
+          <div
+            className="relative w-full md:max-w-2xl max-h-[90vh] bg-[var(--surface)] md:rounded-3xl rounded-t-3xl overflow-y-auto shadow-2xl animate-in slide-in-from-bottom-8 md:zoom-in-95 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between p-5 border-b border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur-md">
+              <div className="flex items-center gap-3">
+                <div className="relative w-8 h-8 rounded-full overflow-hidden border border-[var(--border)] shrink-0">
+                  <Image
+                    src={selectedPost.avatar}
+                    alt={selectedPost.author}
+                    fill
+                    className="object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-sm font-medium text-[var(--text)] leading-tight">{selectedPost.author}</p>
+                    {selectedPost.badge && (
+                      <span className="px-2 py-0.5 bg-[var(--accent)]/10 text-[var(--accent)] rounded-full text-[9px] font-bold uppercase tracking-wider">
+                        {selectedPost.badge}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-[var(--text-faint)]">
+                    {new Date(selectedPost.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setSelectedPost(null); setPreviewMediaUrl(null); }}
+                className="p-2 text-[var(--text-muted)] hover:bg-[var(--surface-sub)] rounded-full transition-colors"
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div className="p-6 space-y-5">
+              {/* Title */}
+              <h2 className="text-xl font-medium text-[var(--text)] tracking-tight leading-snug">
+                {selectedPost.title}
+              </h2>
+
+              {/* Tags */}
+              <div className="flex flex-wrap gap-2">
+                {selectedPost.tool && (
+                  <span className="px-3 py-1 bg-[var(--accent)] text-[var(--accent-fg)] rounded-full text-[10px] font-medium tracking-wider uppercase">
+                    {selectedPost.tool}
+                  </span>
+                )}
+                {selectedPost.work_streams.map(ws => (
+                  <span key={ws} className="px-3 py-1 bg-[var(--surface-sub)] border border-[var(--border)] rounded-full text-xs text-[var(--text-muted)]">
+                    {ws}
+                  </span>
+                ))}
+                {selectedPost.disciplines.map(d => (
+                  <span key={d} className="px-3 py-1 bg-[var(--surface)] border border-[var(--border-strong)] rounded-full text-xs text-[var(--text-muted)]">
+                    {d}
+                  </span>
+                ))}
+              </div>
+
+              {/* Content */}
+              {selectedPost.content && (
+                <p className="text-[var(--text-muted)] text-sm leading-relaxed font-light whitespace-pre-wrap">
+                  {selectedPost.content}
+                </p>
+              )}
+
+              {/* Prompt Used */}
+              {selectedPost.prompt && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-widest text-[var(--text-muted)] font-semibold mb-2">Prompt Used</div>
+                  <div className="bg-[var(--surface-sub)] border border-[var(--border)] rounded-xl p-4 text-xs font-mono text-[var(--text-muted)] whitespace-pre-wrap break-words select-all">
+                    {selectedPost.prompt}
+                  </div>
+                </div>
+              )}
+
+              {/* Media */}
+              {selectedPost.media.length > 0 && (
+                <div className={`grid gap-2 ${selectedPost.media.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {selectedPost.media.map((url, idx) => {
+                    const isVideo = !!url.match(/\.(mp4|webm|ogg|mov)$/i);
+                    return (
+                      <div
+                        key={idx}
+                        className="relative w-full aspect-video rounded-xl overflow-hidden border border-[var(--border)] bg-[var(--surface-sub)] cursor-pointer"
+                        onClick={() => { setPreviewMediaUrl(url); setPreviewMediaIsVideo(isVideo); }}
+                      >
+                        {isVideo ? (
+                          <video src={url} className="w-full h-full object-cover" />
+                        ) : (
+                          <Image
+                            src={url}
+                            alt={`Attachment ${idx + 1}`}
+                            fill
+                            className="object-cover hover:scale-105 transition-transform duration-500"
+                            referrerPolicy="no-referrer"
+                          />
+                        )}
+                        {isVideo && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors">
+                            <svg className="w-12 h-12 text-white drop-shadow-lg" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M8 5v14l11-7z" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen media preview (image or video) */}
+      {previewMediaUrl && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 md:p-12 cursor-zoom-out"
+          onClick={() => setPreviewMediaUrl(null)}
+        >
+          <button
+            className="absolute top-6 right-6 text-white/70 hover:text-white bg-black/50 hover:bg-black/80 p-2 rounded-full backdrop-blur-md transition-all z-[101]"
+            onClick={(e) => { e.stopPropagation(); setPreviewMediaUrl(null); }}
+          >
+            <X className="w-6 h-6" />
+          </button>
+          {previewMediaIsVideo ? (
+            <div className="relative w-full max-w-5xl" onClick={(e) => e.stopPropagation()}>
+              <video src={previewMediaUrl} controls autoPlay className="w-full max-h-[85vh] rounded-xl object-contain" />
+            </div>
+          ) : (
+            <div className="relative w-full h-full max-w-6xl max-h-[90vh]">
+              <Image src={previewMediaUrl} alt="Fullscreen preview" fill className="object-contain" referrerPolicy="no-referrer" />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Crop Modal */}
       {cropModalOpen && tempImageSource && (
@@ -489,20 +707,28 @@ export default function ProfilePage() {
 }
 
 /** Reusable post list item card used in My Posts and Saved Posts */
-function PostListItem({ post }: { post: UserPost }) {
+function PostListItem({ post, onClick }: { post: UserPost; onClick?: () => void }) {
   return (
-    <div className="p-4 bg-[var(--surface)] border border-[var(--border)] rounded-xl flex items-start justify-between gap-3">
+    <div
+      onClick={onClick}
+      className="p-4 bg-[var(--surface)] border border-[var(--border)] rounded-xl flex items-start justify-between gap-3 cursor-pointer hover:border-[var(--border-strong)] hover:bg-[var(--surface-sub)] transition-all group"
+    >
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-[var(--text)] truncate">{post.title}</p>
+        <p className="text-sm font-medium text-[var(--text)] truncate group-hover:text-[var(--text)] transition-colors">{post.title}</p>
         {post.tool && (
           <span className="inline-block mt-1.5 px-2 py-0.5 bg-[var(--accent)] text-[var(--accent-fg)] rounded-full text-[10px] font-medium tracking-wider uppercase">
             {post.tool}
           </span>
         )}
       </div>
-      <span className="text-[10px] text-[var(--text-faint)] shrink-0 pt-0.5">
-        {new Date(post.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-      </span>
+      <div className="flex items-center gap-2 shrink-0 pt-0.5">
+        <span className="text-[10px] text-[var(--text-faint)]">
+          {new Date(post.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+        </span>
+        <svg className="w-3 h-3 text-[var(--text-faint)] opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </div>
     </div>
   );
 }

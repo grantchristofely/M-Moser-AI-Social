@@ -1,10 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X } from 'lucide-react';
 import Image from 'next/image';
 import { roles } from '@/components/site/data';
 
-// Disciplines available in the dropdown (matches homepage section 03/04 role filters)
-const DISCIPLINE_OPTIONS = roles.filter(r => r !== 'All Roles');
+// Disciplines are now loaded dynamically from Supabase
+import { supabase } from '@/utils/supabase/client';
 
 export interface PostFormData {
   title: string;
@@ -14,6 +14,8 @@ export interface PostFormData {
   workStreams: string;
   disciplines: string;
   media: string[];
+  /** MIME types corresponding to each entry in `media` (e.g. "video/mp4", "image/jpeg") */
+  mediaTypes: string[];
   mediaFiles?: File[];
 }
 
@@ -25,23 +27,123 @@ interface NewPostModalProps {
   parentTitle?: string;
 }
 
-const PREDEFINED_TOOLS = [
-  'ChatGPT',
-  'Claude',
-  'Gemini',
-  'Copilot',
-  'Perplexity',
-  'NotebookLM',
-  'Midjourney',
-  'Adobe Firefly',
-  'Photoshop AI',
-  'DALL-E 3',
-  'Runway',
-  'Pika Labs',
-  'Veras',
-  'Finch 3D',
-  'Stable Diffusion',
-];
+// Predefined tools are now loaded dynamically from Supabase
+
+// ── Custom multiselect dropdown for disciplines ──────────────────────────────
+interface DisciplineDropdownProps {
+  options: string[];
+  selected: string[];
+  onChange: (selected: string[]) => void;
+}
+
+function DisciplineDropdown({ options, selected, onChange }: DisciplineDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Close when clicking outside the dropdown
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  // Toggle a single discipline on/off
+  function toggleOption(option: string) {
+    if (selected.includes(option)) {
+      onChange(selected.filter(s => s !== option));
+    } else {
+      onChange([...selected, option]);
+    }
+  }
+
+  // Human-readable summary shown in the trigger button
+  const label =
+    selected.length === 0
+      ? 'Select disciplines...'
+      : selected.length === 1
+      ? selected[0]
+      : `${selected[0]} +${selected.length - 1} more`;
+
+  return (
+    <div ref={containerRef} className="relative">
+      {/* Trigger button */}
+      <button
+        type="button"
+        onClick={() => setOpen(prev => !prev)}
+        className="w-full flex items-center justify-between bg-[var(--surface-sub)] border border-[var(--border)] rounded-xl px-4 py-2.5 text-sm text-[var(--text)] focus:outline-none focus:border-[var(--border-strong)] transition-colors"
+      >
+        <span className={selected.length === 0 ? 'text-[var(--text-faint)]' : ''}>{label}</span>
+        {/* Chevron icon rotates when open */}
+        <svg
+          className={`w-4 h-4 text-[var(--text-muted)] transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {/* Dropdown panel */}
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden">
+          <ul className="max-h-56 overflow-y-auto py-1">
+            {options.map(option => {
+              const isSelected = selected.includes(option);
+              return (
+                <li key={option}>
+                  <button
+                    type="button"
+                    onClick={() => toggleOption(option)}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left transition-colors hover:bg-[var(--surface-sub)] ${
+                      isSelected ? 'text-[var(--accent)]' : 'text-[var(--text)]'
+                    }`}
+                  >
+                    {/* Checkbox indicator */}
+                    <span
+                      className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${
+                        isSelected
+                          ? 'bg-[var(--accent)] border-[var(--accent)]'
+                          : 'border-[var(--border-strong)] bg-[var(--surface-sub)]'
+                      }`}
+                    >
+                      {isSelected && (
+                        <svg className="w-2.5 h-2.5 text-[var(--accent-fg)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </span>
+                    {option}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          {/* Clear / Done footer */}
+          <div className="flex items-center justify-between px-4 py-2 border-t border-[var(--border)] bg-[var(--surface-sub)]">
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="text-xs text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="text-xs font-medium text-[var(--accent)] hover:opacity-75 transition-opacity"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function NewPostModal({ isOpen, onClose, onSubmit, initialData, parentTitle }: NewPostModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -53,17 +155,39 @@ export function NewPostModal({ isOpen, onClose, onSubmit, initialData, parentTit
     workStreams: '',
     disciplines: '',
     media: [],
+    mediaTypes: [],
     mediaFiles: []
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [isCustomTool, setIsCustomTool] = useState(() => {
-    if (initialData?.tool && !PREDEFINED_TOOLS.includes(initialData.tool)) {
-      return true;
+  const [predefinedTools, setPredefinedTools] = useState<string[]>([]);
+  const [disciplineOptions, setDisciplineOptions] = useState<string[]>([]);
+  
+  const [isCustomTool, setIsCustomTool] = useState(false);
+
+  useEffect(() => {
+    // Load tools and disciplines dynamically from Supabase
+    async function loadData() {
+      const [toolsRes, rolesRes] = await Promise.all([
+        supabase.from('platforms').select('name').order('order_idx'),
+        supabase.from('roles').select('name').order('order_idx').neq('name', 'All Roles')
+      ]);
+      
+      const loadedTools = toolsRes.data ? toolsRes.data.map((t: any) => t.name) : [];
+      const loadedDisciplines = rolesRes.data ? rolesRes.data.map((r: any) => r.name) : [];
+      
+      setPredefinedTools(loadedTools);
+      setDisciplineOptions(loadedDisciplines);
+
+      if (initialData?.tool && !loadedTools.includes(initialData.tool)) {
+        setIsCustomTool(true);
+      }
     }
-    return false;
-  });
+    if (isOpen) {
+      loadData();
+    }
+  }, [isOpen, initialData]);
 
   if (!isOpen) return null;
 
@@ -95,9 +219,13 @@ export function NewPostModal({ isOpen, onClose, onSubmit, initialData, parentTit
     if (files && files.length > 0) {
       const fileArray = Array.from(files);
       const newMediaUrls = fileArray.map(file => URL.createObjectURL(file));
+      // Track the MIME type so we can distinguish videos from images
+      // even when the URL is a blob:// URL that has no file extension.
+      const newMediaTypes = fileArray.map(file => file.type);
       setFormData(prev => ({
         ...prev,
         media: [...prev.media, ...newMediaUrls],
+        mediaTypes: [...(prev.mediaTypes || []), ...newMediaTypes],
         mediaFiles: [...(prev.mediaFiles || []), ...fileArray]
       }));
     }
@@ -107,6 +235,10 @@ export function NewPostModal({ isOpen, onClose, onSubmit, initialData, parentTit
     setFormData(prev => {
       const newMedia = [...prev.media];
       newMedia.splice(indexToRemove, 1);
+
+      // Remove the corresponding MIME type entry
+      const newMediaTypes = [...(prev.mediaTypes || [])];
+      newMediaTypes.splice(indexToRemove, 1);
 
       // Only remove from mediaFiles if it was a newly uploaded blob URL
       const urlToRemove = prev.media[indexToRemove];
@@ -123,6 +255,7 @@ export function NewPostModal({ isOpen, onClose, onSubmit, initialData, parentTit
       return {
         ...prev,
         media: newMedia,
+        mediaTypes: newMediaTypes,
         mediaFiles: newMediaFiles
       };
     });
@@ -182,12 +315,12 @@ export function NewPostModal({ isOpen, onClose, onSubmit, initialData, parentTit
               <label className="block text-[10px] font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Tool Used</label>
               {!isCustomTool ? (
                 <select 
-                  value={PREDEFINED_TOOLS.includes(formData.tool) ? formData.tool : (formData.tool ? 'custom' : '')}
+                  value={predefinedTools.includes(formData.tool) ? formData.tool : (formData.tool ? 'custom' : '')}
                   onChange={handleToolChange}
                   className="w-full bg-[var(--surface-sub)] border border-[var(--border)] rounded-xl px-4 py-2.5 text-[var(--text)] text-sm focus:outline-none focus:border-[var(--border-strong)] transition-colors"
                 >
                   <option value="" disabled>Select a tool...</option>
-                  {PREDEFINED_TOOLS.map(t => (
+                  {predefinedTools.map(t => (
                     <option key={t} value={t}>{t}</option>
                   ))}
                   <option value="custom">+ Add new tool...</option>
@@ -237,11 +370,14 @@ export function NewPostModal({ isOpen, onClose, onSubmit, initialData, parentTit
               {formData.media.length > 0 && (
                 <div className="mt-4 flex gap-3 overflow-x-auto pb-2 snap-x">
                   {formData.media.map((url, idx) => {
-                    const isVid = url.match(/\.(mp4|webm|ogg|mov)$/i);
+                    // Use tracked MIME type first (reliable for blob URLs),
+                    // then fall back to extension check for existing remote URLs.
+                    const mimeType = formData.mediaTypes?.[idx] || '';
+                    const isVid = mimeType.startsWith('video/') || !!url.match(/\.(mp4|webm|ogg|mov)$/i);
                     return (
                       <div key={url + idx} className="relative w-24 h-24 shrink-0 rounded-lg overflow-hidden border border-[var(--border)] bg-[var(--surface-sub)] snap-start group">
                         {isVid ? (
-                          <video src={url} className="w-full h-full object-cover" />
+                          <video src={url} className="w-full h-full object-cover" muted />
                         ) : (
                           <Image src={url} alt="Preview" fill className="object-cover" />
                         )}
@@ -284,21 +420,11 @@ export function NewPostModal({ isOpen, onClose, onSubmit, initialData, parentTit
             </div>
             <div>
               <label className="block text-[10px] font-semibold text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">Applicable Disciplines</label>
-              {/* Multi-select: hold Cmd/Ctrl to pick multiple, or toggle pills */}
-              <select
-                multiple
-                value={formData.disciplines.split(',').map(s => s.trim()).filter(Boolean)}
-                onChange={e => {
-                  const selected = Array.from(e.target.selectedOptions).map(o => o.value);
-                  setFormData({ ...formData, disciplines: selected.join(', ') });
-                }}
-                className="w-full bg-[var(--surface-sub)] border border-[var(--border)] rounded-xl px-4 py-2 text-[var(--text)] text-sm focus:outline-none focus:border-[var(--border-strong)] transition-colors min-h-[120px]"
-              >
-                {DISCIPLINE_OPTIONS.map(d => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-              </select>
-              <p className="text-[10px] text-[var(--text-faint)] mt-1">Hold ⌘ / Ctrl to select multiple</p>
+              <DisciplineDropdown
+                options={disciplineOptions}
+                selected={formData.disciplines.split(',').map(s => s.trim()).filter(Boolean)}
+                onChange={selected => setFormData({ ...formData, disciplines: selected.join(', ') })}
+              />
             </div>
           </div>
 

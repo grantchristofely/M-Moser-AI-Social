@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ecosystems, platforms } from '@/components/site/data';
+import { supabase } from '@/utils/supabase/client';
 import { twMerge } from 'tailwind-merge';
 import { clsx, type ClassValue } from 'clsx';
 
@@ -16,7 +16,40 @@ function cn(...inputs: ClassValue[]) {
  * Ported from M-Moser-AI-Site-main with no design changes.
  */
 export function Ecosystems() {
-  const [activeTab, setActiveTab] = useState(ecosystems[0].platformId);
+  const [activeTab, setActiveTab] = useState('');
+  const [ecosystems, setEcosystems] = useState<any[]>([]);
+  const [platforms, setPlatforms] = useState<any[]>([]);
+  const [features, setFeatures] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      const [ecosRes, platsRes, featsRes] = await Promise.all([
+        supabase.from('ecosystems').select('*').order('order_idx'),
+        supabase.from('platforms').select('*').order('order_idx'),
+        supabase.from('ecosystem_features').select('*').order('order_idx'),
+      ]);
+
+      if (ecosRes.data && platsRes.data && featsRes.data) {
+        setEcosystems(ecosRes.data);
+        setPlatforms(platsRes.data);
+        setFeatures(featsRes.data);
+        if (ecosRes.data.length > 0) {
+          setActiveTab(ecosRes.data[0].platform_id);
+        }
+      }
+      setIsLoading(false);
+    }
+    loadData();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <section className="py-32 px-6 max-w-7xl mx-auto relative z-10 border-t border-[var(--site-border)] min-h-[500px] flex items-center justify-center">
+        <div className="animate-pulse w-8 h-8 rounded-full bg-[var(--site-text-muted)]" />
+      </section>
+    );
+  }
 
   return (
     <section
@@ -38,14 +71,14 @@ export function Ecosystems() {
       <div className="flex flex-col lg:flex-row gap-12">
         {/* Platform tab list (scrolls horizontally on mobile) */}
         <div className="flex lg:flex-col overflow-x-auto lg:overflow-visible pb-4 lg:pb-0 gap-2 lg:w-64 shrink-0">
-          {ecosystems.map((eco) => {
-            const platform = platforms.find((p) => p.id === eco.platformId);
-            const isActive = activeTab === eco.platformId;
+          {ecosystems.map((eco: any) => {
+            const platform = platforms.find((p: any) => p.id === eco.platform_id);
+            const isActive = activeTab === eco.platform_id;
 
             return (
               <button
-                key={eco.platformId}
-                onClick={() => setActiveTab(eco.platformId)}
+                key={eco.id}
+                onClick={() => setActiveTab(eco.platform_id)}
                 className={cn(
                   'flex items-center gap-3 px-5 py-4 rounded-xl text-left transition-all whitespace-nowrap lg:whitespace-normal',
                   isActive
@@ -70,21 +103,23 @@ export function Ecosystems() {
         {/* Feature cards for the selected platform */}
         <div className="flex-1 min-h-[400px]">
           <AnimatePresence mode="wait">
-            {ecosystems.map((eco) => {
-              if (eco.platformId !== activeTab) return null;
+            {ecosystems.map((eco: any) => {
+              if (eco.platform_id !== activeTab) return null;
+              
+              const ecoFeatures = features.filter((f: any) => f.ecosystem_id === eco.id);
 
               return (
                 <motion.div
-                  key={eco.platformId}
+                  key={eco.id}
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: 0.3, ease: 'easeOut' }}
                   className="grid grid-cols-1 md:grid-cols-2 gap-4"
                 >
-                  {eco.features.map((feature, idx) => (
+                  {ecoFeatures.map((feature: any, idx: number) => (
                     <div
-                      key={idx}
+                      key={feature.id}
                       className="p-6 rounded-xl border border-[var(--site-border)] bg-[var(--site-bg)] hover:border-[var(--site-text-muted)] transition-colors"
                     >
                       <h4 className="font-medium text-lg mb-2">{feature.name}</h4>

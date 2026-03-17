@@ -90,16 +90,12 @@ export async function recalculateRewards(
     (row: { total_points: number }) => row.total_points ?? 0
   );
 
-  // Determine if this action is the first time the user selected a custom (non-predefined) tool.
-  // PREDEFINED_TOOLS must stay in sync with components/NewPostModal.tsx
-  const PREDEFINED_TOOLS = [
-    'ChatGPT', 'Claude', 'Gemini', 'Copilot', 'Perplexity', 'NotebookLM',
-    'Midjourney', 'Adobe Firefly', 'Photoshop AI', 'DALL-E 3',
-    'Runway', 'Pika Labs', 'Veras', 'Finch 3D', 'Stable Diffusion',
-  ];
-
+  // Fetch all tools from Supabase to check if the tool is "custom" or predefined
+  const { data: platformsData } = await supabase.from('platforms').select('name');
+  const predefinedTools = platformsData ? platformsData.map(p => p.name) : [];
+  
   const isNewTool =
-    !!toolUsed && !PREDEFINED_TOOLS.includes(toolUsed) && !currentHasUsedNewTool;
+    !!toolUsed && !predefinedTools.includes(toolUsed) && !currentHasUsedNewTool;
 
   const hasUsedNewAIToolForFirstTime = currentHasUsedNewTool || isNewTool;
 

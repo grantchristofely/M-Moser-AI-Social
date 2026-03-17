@@ -30,6 +30,9 @@ export default function FeedPage() {
   
   // Track saved posts for the current user
   const [savedPostIds, setSavedPostIds] = useState<Set<string>>(new Set());
+  
+  // Track liked posts
+  const [likedPostIds, setLikedPostIds] = useState<Set<string>>(new Set());
 
   // Gamification celebration modal state
   const [gamificationResult, setGamificationResult] = useState<(LeapterRewardResult & { type: 'post' | 'try_it' }) | null>(null);
@@ -58,10 +61,13 @@ export default function FeedPage() {
       const queries = [
         supabase
           .from('posts')
-          .select(`*, profiles:author_id (full_name, role, avatar_url)`)
+          .select(`*, profiles:author_id (full_name, role, avatar_url, badges (title))`)
           .order('created_at', { ascending: false }),
         supabase
           .from('comments')
+          .select('post_id'),
+        supabase
+          .from('post_likes')
           .select('post_id')
       ];
 
@@ -70,6 +76,10 @@ export default function FeedPage() {
           supabase
             .from('post_saves')
             .select('post_id')
+            .eq('user_id', user.id),
+          supabase
+            .from('post_likes')
+            .select('post_id')
             .eq('user_id', user.id)
         );
       }
@@ -77,7 +87,9 @@ export default function FeedPage() {
       const results = await Promise.all(queries);
       const postsRes = results[0];
       const commentCountsRes = results[1];
-      const savesRes = user ? results[2] : null;
+      const allLikesRes = results[2];
+      const savesRes = user ? results[3] : null;
+      const userLikesRes = user ? results[4] : null;
 
       if (postsRes.error) throw postsRes.error;
 
@@ -88,11 +100,26 @@ export default function FeedPage() {
       }
       setSavedPostIds(newSaved);
 
+      // Build liked posts set
+      const newLiked = new Set<string>();
+      if (userLikesRes && userLikesRes.data) {
+        userLikesRes.data.forEach((row: any) => newLiked.add(row.post_id));
+      }
+      setLikedPostIds(newLiked);
+
       // Build comment count map
       const commentCounts: Record<string, number> = {};
       if (commentCountsRes.data) {
         for (const row of commentCountsRes.data) {
           commentCounts[row.post_id] = (commentCounts[row.post_id] || 0) + 1;
+        }
+      }
+      
+      // Build like count map
+      const likeCounts: Record<string, number> = {};
+      if (allLikesRes.data) {
+        for (const row of allLikesRes.data) {
+          likeCounts[row.post_id] = (likeCounts[row.post_id] || 0) + 1;
         }
       }
 
@@ -102,6 +129,9 @@ export default function FeedPage() {
           author: post.profiles?.full_name || 'Unknown User',
           role: post.profiles?.role || 'Member',
           avatar: post.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(post.profiles?.full_name || 'User')}`,
+          badge: Array.isArray(post.profiles?.badges) && post.profiles.badges.length > 0 
+            ? post.profiles.badges[post.profiles.badges.length - 1].title 
+            : null,
           title: post.title,
           content: post.content,
           media: post.media || [],
@@ -109,6 +139,7 @@ export default function FeedPage() {
           prompt: post.prompt,
           workStreams: post.work_streams || [],
           disciplines: post.disciplines || [],
+          likes: likeCounts[post.id] || 0,
           comments: commentCounts[post.id] || 0,
           isAuthor: user?.id === post.author_id,
           parentId: post.parent_id
@@ -229,6 +260,53 @@ export default function FeedPage() {
         return next;
       });
       alert('Failed to save/unsave post.');
+    }
+  };
+
+  const handleToggleLike = async (postId: string, isCurrentlyLiked: boolean) => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+    
+    // Optimistic UI update
+    setLikedPostIds(prev => {
+      const next = new Set(prev);
+      if (isCurrentlyLiked) next.delete(postId);
+      else next.add(postId);
+      return next;
+    });
+    setPosts(prev => prev.map(p => {
+      if (p.id === postId) {
+        return { ...p, likes: (p.likes || 0) + (isCurrentlyLiked ? -1 : 1) };
+      }
+      return p;
+    }));
+
+    try {
+      if (isCurrentlyLiked) {
+        const { error } = await supabase.from('post_likes').delete().match({ post_id: postId, user_id: user.id });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('post_likes').insert({ post_id: postId, user_id: user.id });
+        if (error) throw error;
+      }
+    } catch (err) {
+      console.error('Error toggling like', err);
+      // Revert optimistic update
+      setLikedPostIds(prev => {
+        const next = new Set(prev);
+        if (isCurrentlyLiked) next.add(postId);
+        else next.delete(postId);
+        return next;
+      });
+      setPosts(prev => prev.map(p => {
+        if (p.id === postId) {
+          return { ...p, likes: (p.likes || 0) + (isCurrentlyLiked ? 1 : -1) };
+        }
+        return p;
+      }));
+      alert('Failed to like/unlike post.');
     }
   };
 
@@ -354,7 +432,10 @@ export default function FeedPage() {
     prompt: editingPostData.prompt,
     workStreams: editingPostData.workStreams.join(', '),
     disciplines: editingPostData.disciplines.join(', '),
-    media: editingPostData.media
+    media: editingPostData.media,
+    // For existing posts, remote URLs carry no blob MIME type; provide an empty
+    // array so the type signature is satisfied. Extension-based fallback is used.
+    mediaTypes: []
   } : null;
 
   const filteredPosts = selectedDiscipline === 'All'
@@ -427,6 +508,8 @@ export default function FeedPage() {
                 onOpenComments={fetchCommentsForPost}
                 isSaved={savedPostIds.has(post.id)}
                 onToggleSave={handleToggleSave}
+                isLiked={likedPostIds.has(post.id)}
+                onToggleLike={handleToggleLike}
               />
             ))}
           </div>

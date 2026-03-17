@@ -7,6 +7,7 @@ import { useTheme } from 'next-themes';
 import { supabase } from '@/utils/supabase/client';
 import { User } from '@supabase/supabase-js';
 import { Sun, Moon } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 /**
  * Site-wide navigation bar, fixed at the top of every page.
@@ -72,48 +73,66 @@ export function Navbar() {
         </Link>
 
         {/* Primary navigation links */}
-        <div className="hidden md:flex items-center gap-8 text-xs font-medium tracking-wide text-[var(--text-muted)]">
+        <div className="hidden md:flex items-center text-xs font-medium tracking-wide text-[var(--text-muted)]">
 
           {/* Homepage-only scroll links */}
-          {isHomepage && (
-            <>
-              <button
-                onClick={() => scrollToSection('platforms')}
-                className="hover:text-[var(--text)] transition-colors"
+          <AnimatePresence>
+            {isHomepage && (
+              <motion.div
+                initial={{ opacity: 0, width: 0, x: 20, pointerEvents: 'none' }}
+                animate={{ opacity: 1, width: 'auto', x: 0, pointerEvents: 'auto' }}
+                exit={{ opacity: 0, width: 0, x: 20, pointerEvents: 'none' }}
+                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                className="overflow-hidden whitespace-nowrap"
               >
-                Platforms
-              </button>
-              <button
-                onClick={() => scrollToSection('ecosystems')}
-                className="hover:text-[var(--text)] transition-colors"
-              >
-                Ecosystems
-              </button>
+                <div className="flex items-center gap-8 pr-8">
+                  <button
+                    onClick={() => scrollToSection('platforms')}
+                    className="hover:text-[var(--text)] transition-colors"
+                  >
+                    Platforms
+                  </button>
+                  <button
+                    onClick={() => scrollToSection('ecosystems')}
+                    className="hover:text-[var(--text)] transition-colors"
+                  >
+                    Ecosystems
+                  </button>
+                  <button
+                    onClick={() => scrollToSection('use-cases')}
+                    className="hover:text-[var(--text)] transition-colors"
+                  >
+                    Use Cases
+                  </button>
 
-              {/* Visual divider between homepage sections and app links */}
-              <span className="text-[var(--text-faint)] select-none">|</span>
-            </>
-          )}
+                  {/* Visual divider between homepage sections and app links */}
+                  <span className="text-[var(--text-faint)] select-none">|</span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Hub app links — redirect to login when user is not authenticated */}
-          <Link
-            href={user ? '/feed' : '/login'}
-            className="hover:text-[var(--text)] transition-colors"
-          >
-            Feed
-          </Link>
-          <Link
-            href={user ? '/leaderboard' : '/login'}
-            className="hover:text-[var(--text)] transition-colors"
-          >
-            Leaderboard
-          </Link>
-          <Link
-            href={user ? '/profile' : '/login'}
-            className="hover:text-[var(--text)] transition-colors"
-          >
-            Profile
-          </Link>
+          <div className="flex items-center gap-8">
+            <Link
+              href={user ? '/feed' : '/login'}
+              className="hover:text-[var(--text)] transition-colors"
+            >
+              Feed
+            </Link>
+            <Link
+              href={user ? '/leaderboard' : '/login'}
+              className="hover:text-[var(--text)] transition-colors"
+            >
+              Leaderboard
+            </Link>
+            <Link
+              href={user ? '/profile' : '/login'}
+              className="hover:text-[var(--text)] transition-colors"
+            >
+              Profile
+            </Link>
+          </div>
         </div>
 
         {/* Right side: auth button + theme toggle */}
