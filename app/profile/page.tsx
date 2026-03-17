@@ -5,7 +5,8 @@ import Image from 'next/image';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
-import { Camera, Edit2, Loader2, X, Crop } from 'lucide-react';
+import { Camera, Edit2, Loader2, X, Crop, Trash2 } from 'lucide-react';
+import { UserAvatar } from '@/components/UserAvatar';
 import Cropper from 'react-easy-crop';
 import { getCroppedImg } from '@/utils/cropImage';
 
@@ -152,8 +153,7 @@ export default function ProfilePage() {
         media: data.media || [],
         created_at: data.created_at,
         author: data.profiles?.full_name || 'Unknown',
-        avatar: data.profiles?.avatar_url ||
-          `https://ui-avatars.com/api/?name=${encodeURIComponent(data.profiles?.full_name || 'User')}`,
+        avatar: data.profiles?.avatar_url,
         badge: Array.isArray(data.profiles?.badges) && data.profiles.badges.length > 0
           ? data.profiles.badges[data.profiles.badges.length - 1].title
           : null,
@@ -246,6 +246,29 @@ export default function ProfilePage() {
     setCropModalOpen(false);
     setTempImageSource(null);
   };
+  
+  const handleDeleteAvatar = async () => {
+    if (!profile) return;
+    if (!confirm('Are you sure you want to remove your profile picture?')) return;
+    
+    setAvatarUploading(true);
+    try {
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: null })
+        .eq('id', profile.id);
+        
+      if (updateError) throw updateError;
+      
+      setProfile({ ...profile, avatar_url: '' });
+      setAvatarPreview(null);
+    } catch (error: any) {
+      console.error('Error deleting avatar:', error);
+      alert(error?.message || 'Failed to delete profile picture.');
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
   const handleSaveName = async () => {
     if (!profile) return;
@@ -295,25 +318,37 @@ export default function ProfilePage() {
         {/* Profile Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center gap-8 mb-16 relative">
 
-          <div 
-            onClick={() => fileInputRef.current?.click()}
-            className="relative w-32 h-32 rounded-full overflow-hidden border border-[var(--border-strong)] bg-[var(--surface-sub)] group shrink-0 cursor-pointer"
-          >
-            {avatarPreview ? (
-              <Image src={avatarPreview} alt="Avatar preview" fill className="object-cover" />
-            ) : profile.avatar_url ? (
-              <Image src={profile.avatar_url} alt={profile.full_name || 'User'} fill className="object-cover" referrerPolicy="no-referrer" />
-            ) : (
-              <Image src={`https://ui-avatars.com/api/?name=${encodeURIComponent(profile.full_name || 'User')}&background=random`} alt={profile.full_name || 'User'} fill className="object-cover" referrerPolicy="no-referrer" />
+          <div className="relative group shrink-0">
+            <div 
+              onClick={() => fileInputRef.current?.click()}
+              className="relative w-32 h-32 rounded-full overflow-hidden border border-[var(--border-strong)] bg-[var(--surface-sub)] cursor-pointer"
+            >
+              {avatarPreview ? (
+                <Image src={avatarPreview} alt="Avatar preview" fill className="object-cover" />
+              ) : (
+                <UserAvatar src={profile.avatar_url} name={profile.full_name || 'User'} size={128} />
+              )}
+              
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                {avatarUploading ? (
+                  <Loader2 className="text-white animate-spin" size={32} />
+                ) : (
+                  <Camera className="text-white" size={32} />
+                )}
+              </div>
+            </div>
+
+            {/* Delete button only shown if there is an avatar and not uploading */}
+            {profile.avatar_url && !avatarUploading && !avatarPreview && (
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDeleteAvatar(); }}
+                className="absolute -top-1 -right-1 p-2 bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition-colors z-10 opacity-0 group-hover:opacity-100"
+                title="Remove profile picture"
+              >
+                <Trash2 size={14} />
+              </button>
             )}
             
-            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              {avatarUploading ? (
-                <Loader2 className="text-white animate-spin" size={32} />
-              ) : (
-                <Camera className="text-white" size={32} />
-              )}
-            </div>
             <input 
               type="file" 
               ref={fileInputRef} 
@@ -500,15 +535,11 @@ export default function ProfilePage() {
             {/* Modal header */}
             <div className="sticky top-0 z-10 flex items-center justify-between p-5 border-b border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur-md">
               <div className="flex items-center gap-3">
-                <div className="relative w-8 h-8 rounded-full overflow-hidden border border-[var(--border)] shrink-0">
-                  <Image
-                    src={selectedPost.avatar}
-                    alt={selectedPost.author}
-                    fill
-                    className="object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
+                <UserAvatar
+                  src={selectedPost.avatar}
+                  name={selectedPost.author}
+                  size={32}
+                />
                 <div>
                   <div className="flex items-center gap-2 mb-0.5">
                     <p className="text-sm font-medium text-[var(--text)] leading-tight">{selectedPost.author}</p>

@@ -91,7 +91,7 @@ export default function PostPage() {
         id: p.id,
         author: p.profiles?.full_name || 'Unknown User',
         role: p.profiles?.role || 'Member',
-        avatar: p.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.profiles?.full_name || 'User')}`,
+        avatar: p.profiles?.avatar_url,
         badge: Array.isArray(p.profiles?.badges) && p.profiles.badges.length > 0
           ? p.profiles.badges[p.profiles.badges.length - 1].title
           : null,
@@ -128,7 +128,7 @@ export default function PostPage() {
         content: c.content,
         created_at: c.created_at,
         author: c.profiles?.full_name || 'Unknown',
-        avatar: c.profiles?.avatar_url || `https://ui-avatars.com/api/?name=User`,
+        avatar: c.profiles?.avatar_url,
       }));
 
       setComments(formattedComments);
@@ -137,7 +137,7 @@ export default function PostPage() {
         id: postData.id,
         author: postData.profiles?.full_name || 'Unknown User',
         role: postData.profiles?.role || 'Member',
-        avatar: postData.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(postData.profiles?.full_name || 'User')}`,
+        avatar: postData.profiles?.avatar_url,
         badge: Array.isArray(postData.profiles?.badges) && postData.profiles.badges.length > 0
           ? postData.profiles.badges[postData.profiles.badges.length - 1].title
           : null,
@@ -194,7 +194,7 @@ export default function PostPage() {
       content: c.content,
       created_at: c.created_at,
       author: c.profiles?.full_name || 'Unknown',
-      avatar: c.profiles?.avatar_url || `https://ui-avatars.com/api/?name=User`,
+      avatar: c.profiles?.avatar_url,
     }));
     setComments(updated);
     setPost(prev => prev ? { ...prev, comments: updated.length, commentsList: updated } : prev);

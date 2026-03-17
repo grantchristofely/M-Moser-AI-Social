@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useState, useRef, useEffect } from 'react';
 import { Pencil, Trash2, X, MessageCircle, Send, Link2, ThumbsUp } from 'lucide-react';
+import { UserAvatar } from './UserAvatar';
 
 export interface CommentItem {
   id: string;
@@ -132,9 +133,7 @@ export function PostCard({
       {/* Author header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-4">
-          <div className="relative w-10 h-10 rounded-full overflow-hidden border border-[var(--border)]">
-            <Image src={avatar} alt={author} fill className="object-cover" referrerPolicy="no-referrer" />
-          </div>
+          <UserAvatar src={avatar} name={author} size={40} />
           <div>
             <div className="flex items-center gap-2">
               <h4 className="font-medium text-[var(--text)] tracking-tight text-sm">{author}</h4>
@@ -326,9 +325,7 @@ export function PostCard({
                 const c = item.data as CommentItem;
                 return (
                   <div key={`comment-${c.id}`} className="flex gap-3">
-                    <div className="relative w-7 h-7 rounded-full overflow-hidden border border-[var(--border)] shrink-0 mt-0.5">
-                      <Image src={c.avatar} alt={c.author} fill className="object-cover" referrerPolicy="no-referrer" />
-                    </div>
+                    <UserAvatar src={c.avatar} name={c.author} size={28} className="mt-0.5" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline gap-2 mb-0.5">
                         <span className="text-xs font-medium text-[var(--text)]">{c.author}</span>
@@ -350,9 +347,7 @@ export function PostCard({
                   <div key={`try-${p.id}`} className="bg-[var(--surface-sub)] border border-[var(--border)] rounded-xl p-4">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <div className="relative w-6 h-6 rounded-full overflow-hidden border border-[var(--border)] shrink-0">
-                          <Image src={p.avatar} alt={p.author} fill className="object-cover" referrerPolicy="no-referrer" />
-                        </div>
+                        <UserAvatar src={p.avatar} name={p.author} size={24} />
                         <span className="text-xs font-medium text-[var(--text)]">{p.author}</span>
                         <span className="text-[9px] uppercase tracking-widest text-[var(--accent)] font-semibold bg-[var(--accent)]/10 px-2 py-0.5 rounded-full">Tried it</span>
                       </div>

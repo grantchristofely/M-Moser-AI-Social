@@ -128,8 +128,8 @@ export default function FeedPage() {
           id: post.id,
           author: post.profiles?.full_name || 'Unknown User',
           role: post.profiles?.role || 'Member',
-          avatar: post.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(post.profiles?.full_name || 'User')}`,
-          badge: Array.isArray(post.profiles?.badges) && post.profiles.badges.length > 0 
+          avatar: post.profiles?.avatar_url,
+          badge: Array.isArray(post.profiles?.badges) && post.profiles.badges.length > 0
             ? post.profiles.badges[post.profiles.badges.length - 1].title 
             : null,
           title: post.title,
@@ -186,7 +186,7 @@ export default function FeedPage() {
         content: c.content,
         created_at: c.created_at,
         author: c.profiles?.full_name || 'Unknown',
-        avatar: c.profiles?.avatar_url || `https://ui-avatars.com/api/?name=User`
+        avatar: c.profiles?.avatar_url
       }));
 
       setCommentsMap(prev => ({ ...prev, [postId]: formatted }));

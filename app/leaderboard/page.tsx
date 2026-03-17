@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Navbar } from '@/components/Navbar';
 import Image from 'next/image';
 import { supabase } from '@/utils/supabase/client';
+import { UserAvatar } from '@/components/UserAvatar';
 
 type LeaderboardEntry = {
   rank: number;
@@ -50,7 +51,7 @@ export default function LeaderboardPage() {
             id: user.id,
             name: user.full_name || 'Unknown User',
             role: user.role || 'Member',
-            avatar: user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name || 'User')}`,
+            avatar: user.avatar_url,
             points: user.total_points || 0,
             badge: badgesByProfile[user.id] || null
           }));
@@ -114,15 +115,11 @@ export default function LeaderboardPage() {
                   </div>
                   
                   <div className="flex items-center gap-4">
-                    <div className="relative w-10 h-10 rounded-full overflow-hidden border border-[var(--border)] flex-shrink-0">
-                      <Image 
-                        src={user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}`} 
-                        alt={user.name} 
-                        fill 
-                        className="object-cover" 
-                        referrerPolicy="no-referrer" 
-                      />
-                    </div>
+                    <UserAvatar 
+                      src={user.avatar} 
+                      name={user.name} 
+                      size={40} 
+                    />
                     <div>
                       <div className="flex items-center gap-2">
                         <h4 className="font-medium text-[var(--text)] tracking-tight text-sm">{user.name}</h4>
