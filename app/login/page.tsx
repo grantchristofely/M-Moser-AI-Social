@@ -24,6 +24,13 @@ export default function LoginPage() {
 
     try {
       if (isSignUp) {
+        // Domain validation
+        if (!email.toLowerCase().endsWith('@mmoser.com')) {
+          setError('Sign-ups are restricted to @mmoser.com email addresses.');
+          setLoading(false);
+          return;
+        }
+
         const { error } = await supabase.auth.signUp({
           email,
           password,
